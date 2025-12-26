@@ -1,8 +1,7 @@
-// Nurkamila
-
 package com.onlineshop.controller;
 
 import com.onlineshop.dto.ProductDto;
+import com.onlineshop.dto.ProductListDto;
 import com.onlineshop.entity.Category;
 import com.onlineshop.entity.Product;
 import com.onlineshop.service.ProductService;
@@ -61,9 +60,26 @@ public class ProductController {
     }
 
     @GetMapping
-    public ResponseEntity<Page<Product>> getAllProducts(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+    public ResponseEntity<Page<ProductListDto>> getAllProducts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(productService.getAllProducts(pageable));
+        Page<Product> products = productService.getAllProducts(pageable);
+
+        Page<ProductListDto> dtoPage = products.map(p -> {
+            ProductListDto dto = new ProductListDto();
+            dto.setId(p.getId());
+            dto.setName(p.getName());
+            dto.setPrice(p.getPrice());
+            dto.setDescription(p.getDescription());
+            dto.setPhotoUrl(p.getPhotoUrl());
+            if (p.getCategory() != null) {
+                dto.setCategoryName(p.getCategory().getName());
+            }
+            return dto;
+        });
+
+        return ResponseEntity.ok(dtoPage);
     }
 
     @DeleteMapping("/{id}")
