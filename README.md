@@ -1,4 +1,3 @@
-```
 # Online Shop Backend
 
 ## Overview
@@ -60,4 +59,3 @@ Features include user registration/login, role-based access (USER and ADMIN), pr
 2. Update `application.properties` if needed (credentials, port).
 3. Run `./gradlew bootRun`.
 4. Use Postman or curl to test endpoints.
-```
