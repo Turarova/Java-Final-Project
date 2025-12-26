@@ -1,79 +1,99 @@
+// Nurkamila
+
 package com.onlineshop.controller;
 
-import com.onlineshop.entity.User;
-import com.onlineshop.service.CartService;
-import com.onlineshop.service.UserService;
+import com.onlineshop.dto.ProductDto;
+import com.onlineshop.entity.Category;
+import com.onlineshop.entity.Product;
+import com.onlineshop.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/cart")
-public class CartController {
+@RequestMapping("/api/products")
+public class ProductController {
 
     @Autowired
-    private CartService cartService;
+    private ProductService productService;
 
-    @Autowired
-    private UserService userService;
+    @PostMapping
+    public ResponseEntity<Product> createProduct(@RequestBody ProductDto dto) {
+        Product product = new Product();
+        product.setName(dto.getName());
+        product.setPrice(dto.getPrice());
+        product.setDescription(dto.getDescription());
+        product.setPhotoUrl(dto.getPhotoUrl());
 
-    @PostMapping("/add")
-    public ResponseEntity<CartItemResponseDto> addToCart(Authentication authentication,
-                                                         @RequestParam Long productId,
-                                                         @RequestParam Integer quantity) {
-        String email = authentication.getName();
-        User user = userService.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        if (dto.getCategoryId() != null) {
+            Category category = productService.getCategoryById(dto.getCategoryId());
+            product.setCategory(category);
+        }
 
-        CartItem saved = cartService.addToCart(user.getId(), productId, quantity);
+        return ResponseEntity.ok(productService.createProduct(product));
+    }
 
-        return ResponseEntity.ok(toDto(saved));
+    @PutMapping("/{id}")
+    public ResponseEntity<Product> updateProduct(@PathVariable Long id, @RequestBody ProductDto dto) {
+        Product updated = new Product();
+        updated.setName(dto.getName());
+        updated.setPrice(dto.getPrice());
+        updated.setDescription(dto.getDescription());
+        updated.setPhotoUrl(dto.getPhotoUrl());
+
+        if (dto.getCategoryId() != null) {
+            Category category = productService.getCategoryById(dto.getCategoryId());
+            updated.setCategory(category);
+        }
+
+        return ResponseEntity.ok(productService.updateProduct(id, updated));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Product> getProduct(@PathVariable Long id) {
+        return ResponseEntity.ok(productService.getProductById(id));
     }
 
     @GetMapping
-    public ResponseEntity<List<CartItemResponseDto>> getCart(Authentication authentication) {
-        String email = authentication.getName();
-        User user = userService.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        List<CartItem> items = cartService.getCartItems(user.getId());
-        List<CartItemResponseDto> dtos = items.stream().map(this::toDto).toList();
-        return ResponseEntity.ok(dtos);
+    public ResponseEntity<Page<Product>> getAllProducts(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(productService.getAllProducts(pageable));
     }
 
-    // Вспомогательный метод
-    private CartItemResponseDto toDto(CartItem item) {
-        CartItemResponseDto dto = new CartItemResponseDto();
-        dto.setId(item.getId());
-        dto.setProductId(item.getProduct().getId());
-        dto.setProductName(item.getProduct().getName());
-        dto.setProductPrice(item.getProduct().getPrice());
-        dto.setProductPhotoUrl(item.getProduct().getPhotoUrl());
-        dto.setQuantity(item.getQuantity());
-        dto.setSubtotal(item.getProduct().getPrice() * item.getQuantity());
-        return dto;
+    @DeleteMapping("/{id}")
+    public ResponseEntity<String> deleteProduct(@PathVariable Long id) {
+        productService.deleteProduct(id);
+        return ResponseEntity.ok("Product deleted successfully");
     }
 
-    @DeleteMapping("/remove")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Void> removeFromCart(Authentication authentication, @RequestParam Long productId) {
-        String email = authentication.getName();
-        com.onlineshop.entity.User user = userService.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        cartService.removeFromCart(user.getId(), productId);
-        return ResponseEntity.ok().build();
+    @GetMapping("/categories")
+    public ResponseEntity<List<Category>> getCategories() {
+        return ResponseEntity.ok(productService.getAllCategories());
     }
 
-    @GetMapping("/total")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Double> getCartTotal(Authentication authentication) {
-        String email = authentication.getName();
-        com.onlineshop.entity.User user = userService.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        return ResponseEntity.ok(cartService.getCartTotal(user.getId()));
+    @PostMapping("/categories")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Category> createCategory(@RequestBody Category category) {
+        return ResponseEntity.ok(productService.createCategory(category));
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<Page<Product>> searchProducts(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Double minPrice,
+            @RequestParam(required = false) Double maxPrice,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Product> products = productService.searchProducts(name, categoryId, minPrice, maxPrice, pageable);
+        return ResponseEntity.ok(products);
     }
 }

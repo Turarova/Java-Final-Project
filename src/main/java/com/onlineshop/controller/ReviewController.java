@@ -1,7 +1,13 @@
+// Nurkamila
+
 package com.onlineshop.controller;
 
-import com.onlineshop.entity.User;
-import com.onlineshop.service.CartService;
+import com.onlineshop.dto.ReviewDto;
+import com.onlineshop.dto.ReviewResponseDto;
+import com.onlineshop.entity.Product;
+import com.onlineshop.entity.Review;
+import com.onlineshop.service.ProductService;
+import com.onlineshop.service.ReviewService;
 import com.onlineshop.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -12,68 +18,77 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/cart")
-public class CartController {
+@RequestMapping("/api/reviews")
+public class ReviewController {
 
     @Autowired
-    private CartService cartService;
+    private ReviewService reviewService;
 
     @Autowired
     private UserService userService;
 
-    @PostMapping("/add")
-    public ResponseEntity<CartItemResponseDto> addToCart(Authentication authentication,
-                                                         @RequestParam Long productId,
-                                                         @RequestParam Integer quantity) {
+    @Autowired
+    private ProductService productService;
+
+
+    @PostMapping
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ReviewResponseDto> addReview(Authentication authentication, @RequestBody ReviewDto dto) {
         String email = authentication.getName();
-        User user = userService.findByEmail(email)
+        com.onlineshop.entity.User user = userService.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        CartItem saved = cartService.addToCart(user.getId(), productId, quantity);
+        Review review = new Review();
+        Product product = productService.getProductById(dto.getProductId());
+        if (product == null) {
+            throw new RuntimeException("Product not found");
+        }
+        review.setProduct(product);
+        review.setUser(user);
+        review.setText(dto.getText());
+        review.setRating(dto.getRating());
 
-        return ResponseEntity.ok(toDto(saved));
+        Review savedReview = reviewService.addReview(review);
+
+        // Создаём DTO вручную
+        ReviewResponseDto response = new ReviewResponseDto();
+        response.setId(savedReview.getId());
+        response.setProductId(savedReview.getProduct().getId());
+        response.setProductName(savedReview.getProduct().getName());
+        response.setProductPrice(savedReview.getProduct().getPrice());
+        response.setProductDescription(savedReview.getProduct().getDescription());
+        response.setProductPhotoUrl(savedReview.getProduct().getPhotoUrl());
+
+        response.setUserId(savedReview.getUser().getId());
+        response.setUserEmail(savedReview.getUser().getEmail());
+
+        response.setText(savedReview.getText());
+        response.setRating(savedReview.getRating());
+
+        return ResponseEntity.ok(response);
     }
 
-    @GetMapping
-    public ResponseEntity<List<CartItemResponseDto>> getCart(Authentication authentication) {
-        String email = authentication.getName();
-        User user = userService.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+    @GetMapping("/product/{productId}")
+    public ResponseEntity<List<ReviewResponseDto>> getReviews(@PathVariable Long productId) {
+        List<Review> reviews = reviewService.getReviewsByProductId(productId);
 
-        List<CartItem> items = cartService.getCartItems(user.getId());
-        List<CartItemResponseDto> dtos = items.stream().map(this::toDto).toList();
+        List<ReviewResponseDto> dtos = reviews.stream().map(review -> {
+            ReviewResponseDto dto = new ReviewResponseDto();
+            dto.setId(review.getId());
+            dto.setProductId(review.getProduct().getId());
+            dto.setProductName(review.getProduct().getName());
+            dto.setProductPrice(review.getProduct().getPrice());
+            dto.setProductDescription(review.getProduct().getDescription());
+            dto.setProductPhotoUrl(review.getProduct().getPhotoUrl());
+
+            dto.setUserId(review.getUser().getId());
+            dto.setUserEmail(review.getUser().getEmail());
+
+            dto.setText(review.getText());
+            dto.setRating(review.getRating());
+            return dto;
+        }).toList();
+
         return ResponseEntity.ok(dtos);
-    }
-
-    // Вспомогательный метод
-    private CartItemResponseDto toDto(CartItem item) {
-        CartItemResponseDto dto = new CartItemResponseDto();
-        dto.setId(item.getId());
-        dto.setProductId(item.getProduct().getId());
-        dto.setProductName(item.getProduct().getName());
-        dto.setProductPrice(item.getProduct().getPrice());
-        dto.setProductPhotoUrl(item.getProduct().getPhotoUrl());
-        dto.setQuantity(item.getQuantity());
-        dto.setSubtotal(item.getProduct().getPrice() * item.getQuantity());
-        return dto;
-    }
-
-    @DeleteMapping("/remove")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Void> removeFromCart(Authentication authentication, @RequestParam Long productId) {
-        String email = authentication.getName();
-        com.onlineshop.entity.User user = userService.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        cartService.removeFromCart(user.getId(), productId);
-        return ResponseEntity.ok().build();
-    }
-
-    @GetMapping("/total")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Double> getCartTotal(Authentication authentication) {
-        String email = authentication.getName();
-        com.onlineshop.entity.User user = userService.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        return ResponseEntity.ok(cartService.getCartTotal(user.getId()));
     }
 }
