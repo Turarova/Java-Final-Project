@@ -38,6 +38,11 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+tasks.named('bootRun') {
+    mainClass = 'com.onlineshop.OnlineShopApplication'
+}
+
 tasks.named('bootJar') {
+    mainClass = 'com.onlineshop.OnlineShopApplication'
     archiveFileName = 'online-shop.jar'
 }
